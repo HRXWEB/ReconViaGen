@@ -42,7 +42,7 @@ Reconstructing 16 images using ReconViaGen (app_fine.py) consumes less than 24GB
 
 ---
 
-## Installation
+## Installation (Blackwell inference)
 
 Clone the repo:
 ```sh
@@ -50,15 +50,52 @@ git clone --recursive -b v0.5 https://github.com/GAP-LAB-CUHK-SZ/ReconViaGen.git
 cd ReconViaGen
 ```
 
-You can choose to create a new conda environment named `reconviagen_v05` and install the dependencies (PyTorch 2.4.0 with CUDA 12.1):
+The supported inference environment is:
+
+- Ubuntu 22.04 x86_64
+- Python 3.10 (managed by uv)
+- GeForce RTX 5090 or RTX PRO 6000 Blackwell (`sm_120`)
+- NVIDIA driver 570 or newer
+- CUDA Toolkit 12.8, including `nvcc`
+- PyTorch 2.7.1 with CUDA 12.8
+
+The CUDA runtime bundled with PyTorch is not a replacement for CUDA Toolkit 12.8: the full toolkit is required to compile the CUDA extensions. Verify the host before installing:
+
 ```sh
-. ./setup.sh --new-env --basic --xformers --flash-attn --cumesh --o-voxel --flexgemm --nvdiffrec --spconv --mipgaussian --kaolin --nvdiffrast --demo
+nvidia-smi
+nvcc --version
 ```
 
-Or you can update a previous conda environment `reconviagen`:
+Install the system build tools and uv, then synchronize the locked Python environment:
+
 ```sh
-. ./setup_update.sh
+sudo apt update
+sudo apt install -y build-essential git libegl1-mesa-dev libgl1-mesa-dev libglib2.0-0 libjpeg-dev
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync --frozen
 ```
+
+Compile the CUDA extensions specifically for Blackwell and run the smoke check:
+
+```sh
+./scripts/install_blackwell.sh
+uv run --no-sync python scripts/check_blackwell.py
+```
+
+The extension installer validates Ubuntu 22.04, driver 570+, CUDA Toolkit 12.8, PyTorch 2.7.1+cu128, and compute capability 12.0 before building. It pins every external CUDA source repository to an immutable commit and sets `TORCH_CUDA_ARCH_LIST=12.0`.
+
+The previous Conda-based `setup.sh` and `setup_update.sh` target PyTorch 2.4/CUDA 12.1 and are not supported on Blackwell.
+
+### Updating the lockfile
+
+`uv.lock` resolves only Linux x86_64 packages. It can still be generated on another host, including macOS, because locking reads distribution metadata without installing or importing the selected CUDA wheels:
+
+```sh
+uv lock --python 3.10
+uv lock --check
+```
+
+macOS inference and `uv sync` are not supported. CUDA extensions are intentionally installed outside the lockfile and must be compiled on the target Ubuntu GPU host. After compiling them, use `uv run --no-sync` or `.venv/bin/python`; a later exact `uv sync` can remove packages installed outside the lockfile, in which case the extension installer must be run again.
 
 ---
 
@@ -66,7 +103,7 @@ Or you can update a previous conda environment `reconviagen`:
 
 Run the script to reconstruct the object:
 ```sh
-python app_v05.py
+uv run --no-sync python app_v05.py
 ```
 
 ---
